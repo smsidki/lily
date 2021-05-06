@@ -1,4 +1,4 @@
-package listener
+package consumer
 
 import (
 	"context"
@@ -19,18 +19,18 @@ type (
 		started          bool
 		ctx              context.Context
 		cancelCtx        context.CancelFunc
-		cg               sarama.ConsumerGroup
+		consumerGroup    sarama.ConsumerGroup
 		saramaConfig     *sarama.Config
-		kafkaListener    KafkaListener
+		consumer         Consumer
 		bootstrapServers []string
 	}
 )
 
-func NewManager(saramaConfig *sarama.Config, kafkaListener KafkaListener, bootstrapServers []string) Manager {
+func NewManager(saramaConfig *sarama.Config, consumer Consumer, bootstrapServers []string) Manager {
 	return &manager{
 		started:          false,
 		saramaConfig:     saramaConfig,
-		kafkaListener:    kafkaListener,
+		consumer:         consumer,
 		bootstrapServers: bootstrapServers,
 	}
 }
@@ -40,17 +40,17 @@ func (m *manager) StartConsumer() (err error) {
 		return errors.New("consumer already started")
 	}
 	m.SetStarted()
-	m.cg, err = sarama.NewConsumerGroup(m.bootstrapServers, m.kafkaListener.GroupId(), m.saramaConfig)
+	m.consumerGroup, err = sarama.NewConsumerGroup(m.bootstrapServers, m.consumer.GroupId(), m.saramaConfig)
 	if err != nil {
 		return
 	}
 	for {
-		if err = m.cg.Consume(m.ctx, m.kafkaListener.Topics(), NewConsumerGroupHandler(m.kafkaListener)); err != nil {
+		if err = m.consumerGroup.Consume(m.ctx, m.consumer.Topics(), NewConsumerGroupHandler(m.consumer)); err != nil {
 			log.Error(err)
 		}
 		if err = m.ctx.Err(); err != nil {
 			log.Warnf(
-				"Consumer group %s topic %s stopped: %v", m.kafkaListener.GroupId(), m.kafkaListener.Topics(), err,
+				"Consumer group %s topic %s stopped: %v", m.consumer.GroupId(), m.consumer.Topics(), err,
 			)
 			break
 		}
@@ -61,8 +61,8 @@ func (m *manager) StartConsumer() (err error) {
 
 func (m *manager) StopConsumer() {
 	m.SetStopped()
-	if m.cg != nil {
-		if err := m.cg.Close(); err != nil {
+	if m.consumerGroup != nil {
+		if err := m.consumerGroup.Close(); err != nil {
 			log.Errorf("Error closing consumer group: %+v", err)
 		}
 	}

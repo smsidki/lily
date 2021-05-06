@@ -1,4 +1,4 @@
-package listener
+package consumer
 
 import (
 	"github.com/Shopify/sarama"
@@ -7,13 +7,13 @@ import (
 
 type (
 	consumerGroupHandler struct {
-		kafkaListener KafkaListener
+		consumer Consumer
 	}
 )
 
-func NewConsumerGroupHandler(kafkaListener KafkaListener) sarama.ConsumerGroupHandler {
+func NewConsumerGroupHandler(consumer Consumer) sarama.ConsumerGroupHandler {
 	return &consumerGroupHandler{
-		kafkaListener: kafkaListener,
+		consumer: consumer,
 	}
 }
 
@@ -27,11 +27,11 @@ func (*consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for record := range claim.Messages() {
-		switch h.kafkaListener.AckMode() {
+		switch h.consumer.AckMode() {
 		case "manual":
-			h.kafkaListener.OnEventAckFunc()(record, session)
+			h.consumer.OnEventAckFunc()(record, session)
 		default:
-			if err := h.kafkaListener.OnEventFunc()(record); err == nil {
+			if err := h.consumer.OnEventFunc()(record); err == nil {
 				session.MarkMessage(record, "")
 			} else {
 				log.Error(err)
