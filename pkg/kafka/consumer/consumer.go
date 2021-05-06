@@ -1,9 +1,9 @@
-package listener
+package consumer
 
 import "github.com/Shopify/sarama"
 
 type (
-	KafkaListener interface {
+	Consumer interface {
 		Id() string
 
 		GroupId() string
