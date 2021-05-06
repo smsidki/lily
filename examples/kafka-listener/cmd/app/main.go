@@ -1,19 +1,18 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"github.com/Shopify/sarama"
 	log "github.com/sirupsen/logrus"
 	listeners "github.com/smsidki/lily/examples/kafka-listener/listener"
 	"github.com/smsidki/lily/pkg/kafka/listener"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 )
 
 func init() {
@@ -41,28 +40,27 @@ func main() {
 	productListener := listeners.NewProductListener()
 	inventoryListener := listeners.NewInventoryListener()
 	kafkaListeners := []listener.KafkaListener{orderListener, productListener, inventoryListener}
-
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 	kafkaContainer, err := listener.NewKafkaContainer(kafkaListeners, listenerConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	g.Go(func() error {
-		return kafkaContainer.Run(ctx)
-	})
+	defer func() {
+		kafkaContainer.Stop()
+	}()
+	kafkaContainer.Run()
+
+	<-time.Tick(5 * time.Second)
+	kafkaContainer.StopByID("inventory")
+
+	<-time.Tick(5 * time.Second)
+	kafkaContainer.RunByID("inventory")
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sigterm:
 		log.Println("Terminating kafka consumer: via signal")
-	case <-ctx.Done():
-		log.Println("Terminating kafka consumer: context cancelled")
 	}
-	cancelCtx()
-	if err := g.Wait(); err != nil {
-		log.Error(err)
-	}
+	kafkaContainer.Stop()
 	log.Info("Exited")
 }
