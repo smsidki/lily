@@ -35,16 +35,20 @@ func NewContainer(saramaConfig *sarama.Config, consumer Consumer, bootstrapServe
 }
 
 func (m *container) Start() {
+	m.Lock()
+	defer m.Unlock()
+
 	var err error
 	if m.started {
 		log.Infof("Consumer group %s topic %s already running", m.consumer.GroupId(), m.consumer.Topics())
+		return
 	}
-	m.SetStarted()
 	m.consumerGroup, err = sarama.NewConsumerGroup(m.bootstrapServers, m.consumer.GroupId(), m.saramaConfig)
 	if err != nil {
 		log.Errorf("Failed to start sonsumer group %s topic %s: %+v", m.consumer.GroupId(), m.consumer.Topics(), err)
 		return
 	}
+	m.SetStarted()
 	go func() {
 		for {
 			if err = m.consumerGroup.Consume(m.ctx, m.consumer.Topics(), NewConsumerGroupHandler(m.consumer)); err != nil {
@@ -61,6 +65,15 @@ func (m *container) Start() {
 }
 
 func (m *container) Stop() {
+	m.Lock()
+	defer m.Unlock()
+
+	if !m.started {
+		log.Infof(
+			"Consumer group %s topic %s not yet running or already stopped", m.consumer.GroupId(), m.consumer.Topics(),
+		)
+		return
+	}
 	m.SetStopped()
 	if m.consumerGroup != nil {
 		if err := m.consumerGroup.Close(); err != nil {
@@ -70,16 +83,12 @@ func (m *container) Stop() {
 }
 
 func (m *container) SetStarted() {
-	m.Lock()
 	m.started = true
 	m.ctx, m.cancelCtx = context.WithCancel(context.Background())
-	m.Unlock()
 }
 
 func (m *container) SetStopped() {
-	m.Lock()
 	m.cancelCtx()
 	<-m.ctx.Done()
 	m.started = false
-	m.Unlock()
 }
