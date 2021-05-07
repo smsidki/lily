@@ -40,20 +40,20 @@ func main() {
 	productConsumer := consumers.NewProductConsumer()
 	inventoryConsumer := consumers.NewInventoryConsumer()
 	kafkaConsumers := []consumer.Consumer{orderConsumer, productConsumer, inventoryConsumer}
-	consumerContainer, err := consumer.NewContainer(kafkaConsumers, consumerConfig)
+	consumerContainer, err := consumer.NewEndpoint(kafkaConsumers, consumerConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer func() {
 		consumerContainer.Stop()
 	}()
-	consumerContainer.Run()
+	consumerContainer.Start()
 
 	<-time.Tick(5 * time.Second)
-	consumerContainer.StopByID("inventory")
+	consumerContainer.StopID("inventory")
 
 	<-time.Tick(5 * time.Second)
-	consumerContainer.RunByID("inventory")
+	consumerContainer.StartID("inventory")
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
