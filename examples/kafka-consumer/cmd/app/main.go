@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
+	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	consumers "github.com/smsidki/lily/examples/kafka-consumer/consumer"
 	"github.com/smsidki/lily/pkg/kafka/consumer"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -46,21 +50,57 @@ func main() {
 	}
 	defer func() {
 		consumerContainer.Stop()
+		log.Info("Exited")
 	}()
 	consumerContainer.Start()
 
-	<-time.Tick(5 * time.Second)
-	consumerContainer.StopID("inventory")
+	router := gin.Default()
+	router.Handle("GET", "/api/utils/kafka/consumers/_start", func(c *gin.Context) {
+		consumerIDs := c.QueryArray("consumerID")
+		if len(consumerIDs) == 0 {
+			consumerContainer.Start()
+		} else {
+			for _, consumerID := range consumerIDs {
+				consumerContainer.StartID(consumerID)
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+		})
+	})
+	router.Handle("GET", "/api/utils/kafka/consumers/_stop", func(c *gin.Context) {
+		consumerIDs := c.QueryArray("consumerID")
+		if len(consumerIDs) == 0 {
+			consumerContainer.Stop()
+		} else {
+			for _, consumerID := range consumerIDs {
+				consumerContainer.StopID(consumerID)
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+		})
+	})
 
-	<-time.Tick(5 * time.Second)
-	consumerContainer.StartID("inventory")
+	server := &http.Server{Addr: ":8080", Handler: router}
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				log.Infof("App stopped to serve API: %v", err)
+				return
+			}
+			log.Infof("Failed to serve API: %+v", err)
+		}
+	}()
 
-	sigterm := make(chan os.Signal, 1)
+	sigterm := make(chan os.Signal)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-	select {
-	case <-sigterm:
-		log.Println("Terminating kafka consumer: via signal")
+	<-sigterm
+
+	log.Info("App will exit")
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCtx()
+	if err := server.Shutdown(ctx); err != nil {
+		log.Errorf("Failed to shutdown server: %+v", err)
 	}
-	consumerContainer.Stop()
-	log.Info("Exited")
 }

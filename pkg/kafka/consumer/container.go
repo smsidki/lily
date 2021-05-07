@@ -38,6 +38,7 @@ func (m *container) Start() {
 	var err error
 	if m.started {
 		log.Infof("Consumer group %s topic %s already running", m.consumer.GroupId(), m.consumer.Topics())
+		return
 	}
 	m.SetStarted()
 	m.consumerGroup, err = sarama.NewConsumerGroup(m.bootstrapServers, m.consumer.GroupId(), m.saramaConfig)
@@ -61,6 +62,12 @@ func (m *container) Start() {
 }
 
 func (m *container) Stop() {
+	if !m.started {
+		log.Infof(
+			"Consumer group %s topic %s not yet running or already stopped", m.consumer.GroupId(), m.consumer.Topics(),
+		)
+		return
+	}
 	m.SetStopped()
 	if m.consumerGroup != nil {
 		if err := m.consumerGroup.Close(); err != nil {
