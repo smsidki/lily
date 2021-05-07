@@ -43,12 +43,12 @@ func (m *container) Start() {
 		log.Infof("Consumer group %s topic %s already running", m.consumer.GroupId(), m.consumer.Topics())
 		return
 	}
-	m.SetStarted()
 	m.consumerGroup, err = sarama.NewConsumerGroup(m.bootstrapServers, m.consumer.GroupId(), m.saramaConfig)
 	if err != nil {
 		log.Errorf("Failed to start sonsumer group %s topic %s: %+v", m.consumer.GroupId(), m.consumer.Topics(), err)
 		return
 	}
+	m.SetStarted()
 	go func() {
 		for {
 			if err = m.consumerGroup.Consume(m.ctx, m.consumer.Topics(), NewConsumerGroupHandler(m.consumer)); err != nil {
