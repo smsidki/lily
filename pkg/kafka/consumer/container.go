@@ -35,6 +35,9 @@ func NewContainer(saramaConfig *sarama.Config, consumer Consumer, bootstrapServe
 }
 
 func (m *container) Start() {
+	m.Lock()
+	defer m.Unlock()
+
 	var err error
 	if m.started {
 		log.Infof("Consumer group %s topic %s already running", m.consumer.GroupId(), m.consumer.Topics())
@@ -62,6 +65,9 @@ func (m *container) Start() {
 }
 
 func (m *container) Stop() {
+	m.Lock()
+	defer m.Unlock()
+
 	if !m.started {
 		log.Infof(
 			"Consumer group %s topic %s not yet running or already stopped", m.consumer.GroupId(), m.consumer.Topics(),
@@ -77,16 +83,12 @@ func (m *container) Stop() {
 }
 
 func (m *container) SetStarted() {
-	m.Lock()
 	m.started = true
 	m.ctx, m.cancelCtx = context.WithCancel(context.Background())
-	m.Unlock()
 }
 
 func (m *container) SetStopped() {
-	m.Lock()
 	m.cancelCtx()
 	<-m.ctx.Done()
 	m.started = false
-	m.Unlock()
 }
