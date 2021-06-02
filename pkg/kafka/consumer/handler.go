@@ -26,17 +26,21 @@ func (*consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
 }
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	for record := range claim.Messages() {
-		switch h.consumer.AckMode() {
-		case "manual":
-			h.consumer.OnEventAckFunc()(record, session)
-		default:
-			if err := h.consumer.OnEventFunc()(record); err == nil {
-				session.MarkMessage(record, "")
-			} else {
-				log.Error(err)
+	for {
+		select {
+		case record := <-claim.Messages():
+			switch h.consumer.AckMode() {
+			case "manual":
+				h.consumer.OnEventAckFunc()(record, session)
+			default:
+				if err := h.consumer.OnEventFunc()(record); err == nil {
+					session.MarkMessage(record, "")
+				} else {
+					log.Error(err)
+				}
 			}
+		case <-session.Context().Done():
+			return nil
 		}
 	}
-	return nil
 }

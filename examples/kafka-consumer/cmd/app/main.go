@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/gin-gonic/gin"
+	errors "github.com/rotisserie/eris"
 	log "github.com/sirupsen/logrus"
 	consumers "github.com/smsidki/lily/examples/kafka-consumer/consumer"
 	"github.com/smsidki/lily/pkg/kafka/consumer"
@@ -22,11 +22,14 @@ import (
 func init() {
 	log.SetReportCaller(true)
 	log.SetFormatter(
-		&log.TextFormatter{CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
-			function = path.Base(frame.Function)
-			file = fmt.Sprintf("%s:%d", filepath.Base(frame.File), frame.Line)
-			return
-		}},
+		&log.TextFormatter{
+			TimestampFormat: "Jan _2 15:04:05.000000000",
+			CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
+				function = path.Base(frame.Function)
+				file = fmt.Sprintf("%s:%d", filepath.Base(frame.File), frame.Line)
+				return
+			},
+		},
 	)
 
 	sarama.Logger = log.StandardLogger()
